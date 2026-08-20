@@ -9,7 +9,10 @@
 
 ## 觀看
 
-本機直接用瀏覽器開啟 `index.html` 即可（單檔、無外部相依、離線可用）。
+- 線上版：<https://lilychentaitra-dthub.github.io/115dashboard-kaohsiung/>
+- 本機：直接用瀏覽器開啟 `index.html`（單檔、無外部相依、離線可用）
+
+現場建議用本機檔案，不要依賴會場網路。
 
 ## 操作
 
