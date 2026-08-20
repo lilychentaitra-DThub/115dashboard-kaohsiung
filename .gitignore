@@ -1,0 +1,18 @@
+# Windows / OneDrive
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.tmp
+~$*
+
+# macOS
+.DS_Store
+
+# 編輯器
+.vscode/
+.idea/
+
+# 打包備份與未使用的原始素材，不進 repo
+*.zip
+assets/_unused/

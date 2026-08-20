@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>企業進出口數據看板｜從數據看見市場，讓市場看見你</title>
+<style>
+:root{
+  --bg-primary:#F5F2E9;
+  --text-primary:#16233D;
+  --text-secondary:#5C6B84;
+  --accent:#1B3A6B;
+  --accent-dim:rgba(27,58,107,.07);
+  --surface:#FFFDF8;
+  --border:#C3CCDC;
+  --on-accent:#FFFFFF;
+  --seal:#A63A32;
+  --guilloche:rgba(27,58,107,.032);
+  --accent-bright:#1B6FD4;
+  /* 螢光筆：報單上手畫的重點。只用在每頁最關鍵的那幾個字 */
+  --mark:rgba(242,193,78,.62);
+  --font-title:"Noto Sans TC","Microsoft JhengHei","PingFang TC","Segoe UI",sans-serif;
+  --font-body:"Noto Sans TC","Microsoft JhengHei","PingFang TC","Segoe UI",sans-serif;
+  /* 標題字重：900=Black（現用）、800=ExtraBold、700=Bold。改這一個值整份跟著變 */
+  --title-weight:900;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--font-body);color:var(--text-primary);background:var(--bg-primary)}
+
+/* 專用捲動容器：用 100% 而非 100vw，避免捲軸寬度讓換頁對不準 */
+#deck{
+  position:fixed;inset:0;display:flex;
+  overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;
+  scroll-behavior:auto;   /* 連續 smooth scroll 會與 scroll-snap 打架卡在半頁 */
+  scrollbar-width:none;-ms-overflow-style:none;
+}
+#deck::-webkit-scrollbar{width:0;height:0;display:none}
+
+/* ---------- 報單紙 ---------- */
+.slide{
+  flex:0 0 100%;width:100%;height:100%;
+  scroll-snap-align:start;scroll-snap-stop:always;
+  display:flex;align-items:center;justify-content:center;
+  padding:2.6vh 3vw;position:relative;
+  background:
+    repeating-linear-gradient(180deg,rgba(27,58,107,.028) 0 1px,transparent 1px 34px),
+    var(--bg-primary);
+}
+.sheet{
+  width:100%;max-width:1500px;height:100%;
+  background:var(--surface);border:1px solid var(--border);
+  box-shadow:0 1px 0 var(--border), 0 18px 44px rgba(22,35,61,.07);
+  display:flex;flex-direction:column;position:relative;overflow:hidden;
+}
+/* 左緣裝訂條。翻到新頁時由上往下長出來，像單據被送進機器 */
+.sheet::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:6px;z-index:2;
+  background:var(--accent);opacity:.9;
+}
+@keyframes bindIn{from{transform:scaleY(0)}}
+.slide.enter .sheet::before{
+  animation:bindIn .52s cubic-bezier(.3,.8,.3,1) backwards;
+  transform-origin:top center;
+}
+/* 防偽底紋：極淡的同心圓網紋，取自有價證券／報單的 guilloche */
+.sheet::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    repeating-radial-gradient(circle at 50% 50%,transparent 0 4.6px,var(--guilloche) 4.6px 5.2px),
+    repeating-linear-gradient(52deg,transparent 0 5px,var(--guilloche) 5px 5.5px);
+  background-size:27px 27px, auto;
+}
+.sheet-head,.slide-inner{position:relative;z-index:1}
+.sheet-head{
+  flex:0 0 auto;
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  padding:.85rem 2.4rem .7rem 2.6rem;
+  border-bottom:3px double var(--border);
+  font-size:clamp(.68rem,.92vw,.84rem);
+  letter-spacing:.09em;color:var(--text-secondary);
+}
+.sheet-head b{color:var(--accent);font-weight:700;letter-spacing:.14em}
+.slide-inner{
+  flex:1 1 auto;min-height:0;
+  display:flex;flex-direction:column;justify-content:center;
+  padding:2.2vh 2.6rem 2.6vh 2.8rem;gap:2.2vh;
+}
+
+/* ---------- 文字 ---------- */
+.eyebrow{
+  font-size:clamp(.78rem,1.05vw,.98rem);
+  letter-spacing:.24em;color:var(--accent);font-weight:700;
+  display:flex;align-items:center;gap:.7rem;
+}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--border);max-width:180px}
+h1{font-family:var(--font-title);font-size:clamp(2.8rem,5.4vw,5rem);line-height:1.2;
+   font-weight:var(--title-weight);letter-spacing:-.012em}
+h2{font-family:var(--font-title);font-size:clamp(2rem,3.7vw,3.3rem);line-height:1.3;
+   font-weight:var(--title-weight);letter-spacing:-.01em}
+h3{font-family:var(--font-title);font-size:clamp(1.32rem,1.85vw,1.72rem);line-height:1.4;font-weight:700}
+.lead{font-size:clamp(1.06rem,1.5vw,1.34rem);line-height:1.72;color:var(--text-secondary);max-width:56ch}
+.note{font-size:clamp(.8rem,1.02vw,.94rem);color:var(--text-secondary);letter-spacing:.03em}
+.hl{color:var(--accent);font-weight:700}
+.key{color:var(--accent-bright)}
+
+/* 螢光筆重點：背景圖層畫在文字底下，不需要額外的堆疊層級，最不容易出事。
+   靜止狀態＝已畫滿；動畫只從「還沒畫」的起點跑過來（fill-mode backwards），
+   萬一動畫被節流或中斷，螢光筆仍然是畫好的樣子。 */
+.mark{
+  background-image:linear-gradient(var(--mark),var(--mark));
+  background-repeat:no-repeat;
+  background-position:0 86%;
+  background-size:100% .52em;
+  padding:0 .1em;
+}
+@keyframes markIn{from{background-size:0 .52em}}
+.slide.enter .mark{animation:markIn .55s cubic-bezier(.25,.7,.3,1) backwards;animation-delay:var(--md,620ms)}
+
+/* ---------- 報單欄位 ---------- */
+.field{position:relative;border:1px solid var(--border);background:var(--surface);padding:1.5rem 1.4rem 1.25rem}
+.field>.tag{
+  position:absolute;top:-.74rem;left:1rem;background:var(--surface);padding:0 .55rem;
+  font-size:clamp(.88rem,1.15vw,1.02rem);letter-spacing:.16em;color:var(--accent);font-weight:700;
+}
+.field h3{margin-bottom:.5rem}
+.field p{font-size:clamp(.94rem,1.22vw,1.08rem);line-height:1.7;color:var(--text-secondary)}
+
+.two-col{display:grid;grid-template-columns:1.05fr .95fr;gap:2.6rem;align-items:center}
+.two-col.wide-right{grid-template-columns:.9fr 1.1fr}
+.stack{display:flex;flex-direction:column;gap:1.15rem}
+/* 欄位標籤浮在上框線上，前面若接文字需多留一點空隙 */
+.stack>.field{margin-top:.5rem}
+
+/* ---------- 圖 ---------- */
+.shot{border:1px solid var(--border);background:#fff;padding:.4rem;
+      box-shadow:0 8px 24px rgba(22,35,61,.09);overflow:hidden}
+/* 全域高度上限：任何截圖都不得撐破版面 */
+.shot img{display:block;width:100%;height:auto;max-height:46vh;object-fit:contain;object-position:center}
+.cap{font-size:clamp(.7rem,.92vw,.82rem);color:var(--text-secondary);letter-spacing:.06em;margin-top:.5rem}
+
+/* 趨勢折線圖：原稿是 PowerPoint 原生圖表（示意圖），改用 SVG 重繪才不會糊 */
+svg.trend{display:block;width:100%;height:auto;max-height:40vh;font-family:var(--font-body)}
+svg.trend .grid line{stroke:var(--border);stroke-width:1}
+svg.trend text{font-size:13px;fill:var(--text-secondary)}
+svg.trend .ylab text{text-anchor:end}
+svg.trend .xlab text{text-anchor:middle}
+svg.trend .ln{fill:none;stroke-linecap:round;stroke-linejoin:round}
+svg.trend .ln.rise{stroke:var(--accent);stroke-width:3.2}
+svg.trend .ln.flat{stroke:#9AA6B8;stroke-width:2.4}
+svg.trend .dot.rise circle{fill:var(--accent)}
+svg.trend .dot.flat circle{fill:#9AA6B8}
+svg.trend .tag{text-anchor:end;font-weight:700;font-size:14px}
+svg.trend .tag.rise{fill:var(--accent)}
+svg.trend .tag.flat{fill:#7C889B}
+/* dasharray 取各線的實際路徑長再進位，靜止時 dasharray > 路徑長＝整條實線，
+   不會出現虛線缺口。兩條線同延遲同時長，同時抵達右緣，成長速度的差別才看得出來。
+   fill-mode 一律 backwards：延遲期間停在「還沒畫」的起點，畫完就回到元素本來的樣子。 */
+svg.trend .ln{stroke-dashoffset:0}
+svg.trend .ln.flat{stroke-dasharray:495}
+svg.trend .ln.rise{stroke-dasharray:525}
+@keyframes drawFlat{from{stroke-dashoffset:495}}
+@keyframes drawRise{from{stroke-dashoffset:525}}
+.slide.enter svg.trend .ln{animation-duration:1.15s;animation-timing-function:cubic-bezier(.4,0,.25,1);
+  animation-fill-mode:backwards;animation-delay:.72s}
+.slide.enter svg.trend .ln.flat{animation-name:drawFlat}
+.slide.enter svg.trend .ln.rise{animation-name:drawRise}
+/* 圓點跟著線頭亮起來：六個點平均分布在 x 軸上，延遲＝線畫到該點的時刻 */
+@keyframes dotIn{from{opacity:0;transform:scale(.2)}}
+.slide.enter svg.trend .dot circle{animation:dotIn .3s ease-out backwards;transform-box:fill-box;transform-origin:center}
+.slide.enter svg.trend .dot circle:nth-child(1){animation-delay:.72s}
+.slide.enter svg.trend .dot circle:nth-child(2){animation-delay:.95s}
+.slide.enter svg.trend .dot circle:nth-child(3){animation-delay:1.18s}
+.slide.enter svg.trend .dot circle:nth-child(4){animation-delay:1.41s}
+.slide.enter svg.trend .dot circle:nth-child(5){animation-delay:1.64s}
+.slide.enter svg.trend .dot circle:nth-child(6){animation-delay:1.87s}
+@keyframes tagIn{from{opacity:0}}
+.slide.enter svg.trend .tag{animation:tagIn .4s ease-out backwards;animation-delay:1.9s}
+
+/* ---------- 表格（報單） ---------- */
+table.decl{width:100%;border-collapse:collapse;font-size:clamp(.9rem,1.18vw,1.06rem);background:var(--surface)}
+table.decl th,table.decl td{border:1px solid var(--border);padding:.85rem 1rem;text-align:left;vertical-align:middle}
+table.decl thead th{background:var(--accent-dim);color:var(--accent);font-weight:700;
+  letter-spacing:.08em;font-size:clamp(.84rem,1.08vw,.98rem)}
+table.decl tbody th{background:var(--accent-dim);color:var(--text-primary);font-weight:700;width:11rem;letter-spacing:.06em}
+table.decl td{color:var(--text-secondary)}
+table.decl .win{background:var(--accent);color:var(--on-accent);font-weight:700}
+table.decl thead th.win{background:var(--accent);color:var(--on-accent)}
+table.decl td.win{color:var(--on-accent)}
+
+/* ---------- 數字 ---------- */
+.stat{display:flex;align-items:baseline;gap:.6rem;font-family:var(--font-title)}
+.stat .cur{font-size:clamp(1.2rem,2vw,1.8rem);color:var(--accent);font-weight:var(--title-weight)}
+.stat .num{font-size:clamp(4.4rem,9vw,8.4rem);line-height:.92;color:var(--accent);
+  font-weight:var(--title-weight);letter-spacing:-.03em}
+
+/* checklist */
+ul.check{list-style:none;display:flex;flex-direction:column;gap:.9rem}
+ul.check li{display:grid;grid-template-columns:1.6rem 1fr;gap:.85rem;align-items:start;
+  border-bottom:1px dotted var(--border);padding-bottom:.85rem}
+ul.check li:last-child{border-bottom:0}
+ul.check .mk{color:var(--accent);font-weight:700;font-size:1.05rem;line-height:1.5}
+ul.check b{display:block;font-size:clamp(1rem,1.3vw,1.16rem);margin-bottom:.15rem}
+ul.check span{font-size:clamp(.86rem,1.08vw,.98rem);color:var(--text-secondary)}
+
+/* ---------- 痛點卡（第 02 頁） ----------
+   整頁只講問題，不列解法——解法留給講者口頭帶，以及後面 05–07 三頁的實圖。
+   三張卡獨占一頁，所以編號放大成主角，卡片撐滿等高。 */
+.pains{display:grid;grid-template-columns:repeat(3,1fr);gap:1.6rem;align-items:stretch}
+.pain{
+  border:1px solid var(--border);border-left:4px solid #B9A08A;
+  background:rgba(22,35,61,.028);
+  padding:1.75rem 1.5rem 1.6rem;
+  display:flex;flex-direction:column;
+}
+.pain .pn{
+  font-family:var(--font-title);font-weight:var(--title-weight);
+  font-size:clamp(1.9rem,3vw,2.75rem);line-height:1;letter-spacing:-.02em;
+  color:var(--accent);display:block;margin-bottom:.85rem;
+}
+.pain b{display:block;font-family:var(--font-title);font-size:clamp(1.3rem,1.95vw,1.78rem);
+  line-height:1.35;color:var(--text-primary);margin-bottom:.5rem}
+.pain p{font-size:clamp(.9rem,1.14vw,1.02rem);line-height:1.72;color:var(--text-secondary)}
+
+/* 流程 */
+.flow{display:grid;grid-template-columns:repeat(6,1fr);gap:.6rem}
+.flow.f3{grid-template-columns:repeat(3,1fr)}
+.flow .step{border:1px solid var(--border);padding:1rem .85rem;position:relative;background:var(--surface);
+  display:flex;flex-direction:column;gap:.3rem}
+.flow .step .no{width:1.75rem;height:1.75rem;border-radius:50%;background:var(--accent);color:var(--on-accent);
+  display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:700;margin-bottom:.25rem}
+.flow .step b{font-size:clamp(.9rem,1.12vw,1.02rem);line-height:1.4}
+.flow .step span{font-size:clamp(.74rem,.94vw,.86rem);color:var(--text-secondary)}
+
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.chips li{list-style:none;border:1px solid var(--border);padding:.5rem .85rem;
+  font-size:clamp(.82rem,1.04vw,.94rem);background:var(--accent-dim);color:var(--accent);font-weight:600}
+.chips li.key-cond{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+
+/* 談判對白 */
+.dialog{display:flex;flex-direction:column;gap:.9rem}
+.dialog .line{border-left:3px solid var(--border);padding:.65rem 0 .65rem 1.1rem}
+.dialog .line.you{border-left-color:var(--accent)}
+.dialog .line .who{font-size:clamp(.72rem,.92vw,.82rem);letter-spacing:.16em;color:var(--text-secondary);margin-bottom:.25rem}
+.dialog .line p{font-family:var(--font-title);font-size:clamp(1.02rem,1.42vw,1.28rem);line-height:1.6}
+.dialog .line.you p{color:var(--accent);font-weight:700}
+
+/* ---------- 深色頁 ---------- */
+.slide.dark{background:var(--accent)}
+.slide.dark .sheet{background:var(--accent);border-color:rgba(255,255,255,.28);box-shadow:none;color:var(--on-accent)}
+.slide.dark .sheet::before{background:rgba(255,255,255,.5)}
+.slide.dark .sheet-head{border-bottom-color:rgba(255,255,255,.3);color:rgba(255,255,255,.72)}
+.slide.dark .sheet-head b{color:#fff}
+.slide.dark h1,.slide.dark h2{color:var(--on-accent)}
+.slide.dark .lead{color:rgba(255,255,255,.82)}
+.slide.dark .eyebrow{color:rgba(255,255,255,.85)}
+.slide.dark .eyebrow::after{background:rgba(255,255,255,.35)}
+/* 深色頁的防偽底紋要反過來用淺色，否則藍底上看不見 */
+.slide.dark .sheet{--guilloche:rgba(255,255,255,.05)}
+.slide.dark .note{color:rgba(255,255,255,.7)}
+.slide.dark .terms{display:flex;gap:0;border:1px solid rgba(255,255,255,.35)}
+.slide.dark .terms div{flex:1;padding:1.05rem 1.2rem;border-right:1px solid rgba(255,255,255,.35);color:#fff}
+.slide.dark .terms div:last-child{border-right:0}
+.slide.dark .terms b{display:block;font-family:var(--font-title);
+  font-size:clamp(1.3rem,2.1vw,1.85rem);margin-bottom:.15rem}
+.slide.dark .terms span{font-size:clamp(.76rem,.96vw,.88rem);color:rgba(255,255,255,.75)}
+
+/* 封面署名：只有文字，不掛 logo（logo 統一留在最後的報名頁） */
+.cover-meta{border-top:1px solid rgba(255,255,255,.3);padding-top:1.1rem;display:flex;flex-wrap:wrap;gap:.5rem 2rem}
+.cover-meta div{font-size:clamp(.84rem,1.06vw,.96rem);color:rgba(255,255,255,.75)}
+.cover-meta b{color:#fff;font-weight:700}
+
+/* ---------- 主辦／執行 logo 列（末頁 09） ----------
+   兩個 logo 檔都正規化成同樣的高度，用 height 控制、width:auto，
+   兩枚 logo 的視覺重量才會一致。
+   兩枚都是深色去背檔：淺色紙面直接放（現用的 .plain），
+   若日後要放到深藍頁上，改用不加 .plain 的版本墊白底才看得見。 */
+.logobar{
+  display:flex;align-items:center;gap:clamp(1rem,2vw,2.2rem);
+  background:#fff;border:1px solid var(--border);
+  padding:.8rem clamp(.9rem,1.6vw,1.5rem);
+  width:max-content;max-width:100%;
+}
+.logobar .lgu{display:flex;align-items:center;gap:.7rem}
+.logobar .lgl{
+  font-size:clamp(.7rem,.9vw,.82rem);letter-spacing:.18em;
+  color:var(--text-secondary);font-weight:700;white-space:nowrap;
+}
+.logobar img{display:block;height:clamp(22px,2.35vw,32px);width:auto}
+.logobar .sep{width:1px;align-self:stretch;background:var(--border)}
+/* 淺色頁：不需要白底，直接放紙面上 */
+.logobar.plain{background:transparent;border:0;padding:0;gap:clamp(.9rem,1.7vw,1.8rem)}
+.logobar.plain img{height:clamp(20px,2vw,27px)}
+
+/* ---------- 印章 ---------- */
+.seal{
+  --seal-opacity:.88;
+  border:2.5px solid var(--seal);color:var(--seal);
+  /* 印章刻意保留宋體：這是印記不是標題，用黑體會失去公文章戳的味道 */
+  font-family:"Noto Serif TC","PMingLiU",serif;font-weight:700;
+  padding:.7rem .9rem;text-align:center;line-height:1.3;
+  transform:rotate(-7deg);
+  font-size:clamp(.86rem,1.16vw,1.04rem);letter-spacing:.12em;
+  opacity:var(--seal-opacity);width:max-content;
+  /* 預設不顯示：印章是獨立的一拍，等講者再按一次方向鍵才蓋下來 */
+  visibility:hidden;
+}
+/* 實心章：紅底白字，內圈細白線做出公文印章的雙框 */
+.seal.seal-solid{--seal-opacity:.94;background:var(--seal);color:#fff;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5)}
+/* 用 .seal.seal-pin 提高權重，否則會被後面動畫區塊的 .seal{position:relative} 蓋掉 */
+.seal.seal-pin{position:absolute;z-index:3}
+/* 錨定表格／標題而非紙面，版面重新置中時才不會跟內容脫節 */
+.stamp-anchor{position:relative}
+.seal.seal-pin--table{top:-3.6rem;right:-.6rem}
+.stamp-anchor--title{width:max-content}
+.seal.seal-pin--title{top:1.1rem;right:-7rem}
+
+/* QR */
+.qr{border:1px solid var(--border);padding:.7rem;background:#fff;width:max-content}
+.qr img{display:block;width:clamp(150px,17vw,215px);height:auto}
+/* 報名 QR 放大：這張圖上半部是標題塊，真正的碼只占約一半高度，
+   要比純碼圖再大一號，後排才掃得到 */
+.qr.qr-lg img{width:clamp(230px,27vw,360px)}
+
+/* ---------- 介面 ---------- */
+/* 分段進度條：四段對應四個段落，讓聽眾知道現在走到哪 */
+#bar{position:fixed;left:0;top:0;height:3px;width:100%;z-index:60;display:flex;gap:2px}
+#bar .seg{position:relative;height:100%;background:var(--accent-dim);overflow:hidden}
+#bar .seg i{position:absolute;inset:0;background:var(--accent);
+  transform:scaleX(0);transform-origin:left;transition:transform .32s ease}
+#pg{position:fixed;right:1.1rem;bottom:.9rem;z-index:60;
+  font-size:.76rem;letter-spacing:.14em;color:var(--text-secondary);
+  background:rgba(245,242,233,.9);padding:.25rem .6rem;border:1px solid var(--border)}
+#hint{position:fixed;left:1.1rem;bottom:.9rem;z-index:60;
+  font-size:.72rem;letter-spacing:.1em;color:var(--text-secondary);
+  background:rgba(245,242,233,.9);padding:.25rem .6rem;border:1px solid var(--border)}
+#notes{position:fixed;left:0;right:0;bottom:0;z-index:70;
+  background:#16233D;color:#EEF2F8;padding:1.15rem 1.6rem;
+  font-size:clamp(.88rem,1.1vw,1rem);line-height:1.75;
+  border-top:3px solid var(--accent);max-height:42vh;overflow-y:auto;
+  display:none;white-space:pre-wrap}
+#notes.on{display:block}
+#notes .nh{font-size:.72rem;letter-spacing:.2em;color:#8FA6C6;margin-bottom:.5rem;display:block}
+
+@media (max-width:900px){
+  .two-col{grid-template-columns:1fr;gap:1.4rem}
+  .pains{grid-template-columns:1fr}
+  .flow,.flow.f3{grid-template-columns:repeat(3,1fr)}
+  .slide-inner{padding:1.6vh 1.2rem}
+}
+
+/* ============================================================
+   動態系統
+   原則：一頁只有一個有力道的動作（蓋章），其餘一律安靜的順序揭示。
+   所有動畫一律 fill-mode:backwards——只在延遲期間套用起始狀態，
+   結束後回到元素本來可見的樣子。若用 both，動畫被瀏覽器節流或
+   中斷時，內容會永遠卡在 opacity:0，整頁空白。
+   ============================================================ */
+@keyframes revealFwd{from{opacity:0;transform:translate3d(18px,0,0)}to{opacity:1;transform:none}}
+@keyframes revealBwd{from{opacity:0;transform:translate3d(-18px,0,0)}to{opacity:1;transform:none}}
+.slide.enter [data-r]{
+  animation:revealFwd .46s cubic-bezier(.22,.7,.28,1) backwards;
+  animation-delay:var(--d,0ms);
+}
+body.nav-back .slide.enter [data-r]{animation-name:revealBwd}
+
+/* 招牌動作：核驗蓋章。落下、輕微過衝、墨色收乾 */
+@keyframes stampDown{
+  0%  {opacity:0;transform:rotate(-19deg) scale(1.75);filter:blur(3px)}
+  55% {opacity:.95;transform:rotate(-4deg) scale(.93);filter:blur(0)}
+  75% {transform:rotate(-8.5deg) scale(1.03)}
+  /* 用變數取值，實心章與一般章的靜止不透明度不同，動畫結束才不會跳一下 */
+  100%{opacity:var(--seal-opacity);transform:rotate(-7deg) scale(1);filter:blur(0)}
+}
+/* visibility 由 class 直接控制而非靠動畫，動畫就算沒跑，印章仍然看得到 */
+.seal.stamped{visibility:visible;animation:stampDown .58s cubic-bezier(.3,1.4,.5,1) backwards}
+/* 蓋下瞬間擴散的墨暈 */
+@keyframes inkSpread{
+  0%  {opacity:0;transform:scale(.7)}
+  40% {opacity:.16}
+  100%{opacity:0;transform:scale(1.9)}
+}
+.seal{position:relative}
+.seal.stamped::after{
+  content:"";position:absolute;inset:-6px;border-radius:3px;
+  background:var(--seal);z-index:-1;
+  animation:inkSpread .75s ease-out both;animation-delay:240ms;
+}
+
+@media (prefers-reduced-motion:reduce){
+  #bar{transition:none}
+  .slide.enter [data-r],
+  .slide.enter .mark,
+  .slide.enter .sheet::before,
+  .slide.enter svg.trend .ln,
+  .slide.enter svg.trend .dot circle,
+  .slide.enter svg.trend .tag,
+  .seal.stamped{animation:none}
+  .seal.stamped::after{display:none}
+}
+@media print{
+  html,body{height:auto;overflow:visible}
+  #deck{position:static;display:block;overflow:visible}
+  .slide{page-break-after:always;height:100vh;width:100%}
+  #bar,#pg,#hint,#notes{display:none}
+  .seal{visibility:visible}   /* 轉 PDF 時印章要印得出來 */
+}
+</style>
+</head>
+<body>
+
+<div id="bar"></div>
+
+<div id="deck">
+
+<!-- ============ 01 封面 ============ -->
+<section class="slide dark" data-note="〔約 25 秒〕
+各位先進午安。接下來五分鐘，介紹外貿協會數位科技中心推出的一項數據服務——企業進出口數據看板。
+目標很簡單：從數據看見市場，也讓市場看見你。
+一年 999 元、每天不到 3 塊錢、全年無限次查閱、年度限量 300 家。
+五分鐘會講三件事：為什麼需要它、999 元買到什麼、以及怎麼申請。">
+  <div class="sheet">
+    <header class="sheet-head">
+      <span><b>TAITRA</b>　中華民國對外貿易發展協會　數位科技中心</span>
+      <span>高雄辦事處　01 / 09</span>
+    </header>
+    <div class="slide-inner">
+      <div class="stack" style="gap:1.4rem">
+        <p class="eyebrow">企業拓銷數據服務</p>
+        <h1>企業進出口<br>數據看板</h1>
+        <p class="lead" style="font-size:clamp(1.2rem,1.95vw,1.65rem);max-width:none">
+          從數據看見市場，讓市場看見你。
+        </p>
+        <div class="terms">
+          <div><b>NT$999</b><span>年費．一天不到 3 元</span></div>
+          <div><b>無限次</b><span>一年不限次數查閱</span></div>
+          <div><b>每月更新</b><span>資料自動更新，可查 5 年歷史</span></div>
+          <div><b>限量 300 家</b><span>年度名額，額滿即止</span></div>
+        </div>
+        <div class="cover-meta">
+          <div>主辦　<b>經濟部國際貿易署</b></div>
+          <div>執行　<b>中華民國對外貿易發展協會．數位科技中心</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 三大痛點 ============ -->
+<section class="slide" data-note="〔約 45 秒〕
+先講為什麼需要。中小企業在海外拓銷，常常卡在三個地方。
+第一，資訊不對稱——不知道自己的產品實際流到哪些國家，也不了解買家真正的需求在哪。
+第二，決策靠經驗——業務一句「我感覺這個市場不錯」就投入資源，賭對了是運氣，賭錯了成本很高。
+第三，價格被砍——面對買主殺價，拿不出客觀證據，最後只能跟著降。
+這三個問題，其實都能用數據解。接下來就看這套工具是什麼、要多少錢。
+〔解法不寫在畫面上，是刻意的：三種用法後面各有一張實際看板的圖（05–07 頁），到那裡再一一對回來，比在這裡先劇透有力。〕
+（備用回答：已經有固定外銷市場也需要嗎？穩定不代表沒風險，看板可以幫你及早發現新興市場、降低單一市場依賴。）">
+  <div class="sheet">
+    <header class="sheet-head">
+      <span><b>數據看板</b>　為什麼需要</span>
+      <span>高雄辦事處　02 / 09</span>
+    </header>
+    <div class="slide-inner">
+      <p class="eyebrow">01　問題盤點</p>
+      <h2>中小企業拓銷的<span class="mark">三大痛點</span></h2>
+      <div class="pains" style="margin-top:1.2vh">
+        <div class="pain">
+          <span class="pn">01</span>
+          <b>資訊不對稱</b>
+          <p>不知道產品實際出口到哪些國家，也不了解買家真正的需求。</p>
+        </div>
+        <div class="pain">
+          <span class="pn">02</span>
+          <b>決策靠經驗</b>
+          <p>業務說「這個市場有機會」，但有多少機會，沒人說得準。</p>
+        </div>
+        <div class="pain">
+          <span class="pn">03</span>
+          <b>價格被砍</b>
+          <p>不知道行情，報價沒底氣；面對低價競爭，只能跟著降。</p>
+        </div>
+      </div>
+      <p class="lead" style="margin-top:1.4vh;max-width:none;color:var(--accent);font-weight:700;font-family:var(--font-title);font-size:clamp(1.15rem,1.72vw,1.52rem)">
+        → 這三個問題，數據都能解。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 999 買到什麼 ============ -->
+<section class="slide" data-note="〔約 45 秒〕
+999 元到底買到什麼？
+會依你關注的產品 HS Code，建置一套專屬的客製化看板。做好之後就是一個網址，公司全年無限次查閱，不限人數也不限次數。
+數據每月自動更新，而且可以回溯 5 年歷史——年度看大趨勢，月度幫你判斷季節性波動。
+最重要的是資料來源：財政部關務署的進出口報關統計，不是 AI 生成的。可以直接拿去做內部提案，也可以拿去跟客戶溝通。
+（備用回答：不懂數據分析也能用嗎？完全不需要背景，只要給 HS Code 跟產品名稱，看板我們建好，會看圖就會用。）">
+  <div class="sheet">
+    <header class="sheet-head">
+      <span><b>數據看板</b>　方案內容</span>
+      <span>高雄辦事處　03 / 09</span>
+    </header>
+    <div class="slide-inner">
+      <p class="eyebrow">02　999 元買到什麼</p>
+      <div class="two-col wide-right" style="margin-top:.4vh">
+        <div class="stack" style="gap:1rem">
+          <div class="stat">
+            <span class="cur">NT$</span><span class="num" data-count="999">999</span>
+          </div>
+          <p class="lead" style="margin-top:-.4rem">一整年專屬訂閱　·　平均一天不到 <span class="hl">3 元</span></p>
+          <div class="field" style="margin-top:.6rem">
+            <span class="tag">資料來源</span>
+            <h3>財政部關務署　進出口報關統計</h3>
+            <p><span class="mark">不是 AI 生成</span>，可直接作為內部提案與客戶溝通的依據。</p>
+          </div>
+        </div>
+        <ul class="check">
+          <li><span class="mk">✓</span><span><b>企業專屬客製化看板</b><span>依你的 HS Code 與產品建置，看到的是自己的市場</span></span></li>
+          <li><span class="mk">✓</span><span><b>視覺化互動圖表</b><span>不需要數據背景，會看圖就會用</span></span></li>
+          <li><span class="mk">✓</span><span><b>全年無限次線上查閱</b><span>一個網址，想查就查、不限次數</span></span></li>
+          <li><span class="mk">✓</span><span><b>每月資料自動更新</b><span>市場在變，數據跟著變</span></span></li>
+          <li><span class="mk">✓</span><span><b>可查 5 年歷史數據</b><span>年度看大趨勢，月度看季節性波動</span></span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 ★ 比一比（本頁有兩拍） ============ -->
+<section class="slide" data-note="〔約 60 秒．本頁有兩拍：先講表格，講完按一次方向鍵蓋印章，再按一次才翻頁〕
+這一頁請各位花十秒看一下。同樣是要掌握進出口數據，你有四條路。
+自己上網拼湊，看起來免費，但花的是業務的時間，而且抓回來的多半是網路雜訊。
+買付費資料庫，數十萬起跳，給你的還常常是通用報表、季度更新。
+聘一個數據分析師，月薪五到八萬，一年就是七、八十萬。
+而這個方案 999 元，資料來源是財政部關務署，依你的 HS Code 客製，每月更新。
+企業如果單獨找廠商開發，市場行情基本上十幾萬起跳。今年在政府支持下，一年只要 999 元——不是一季，也不是一個月，是一整年，一張千元鈔票還找得了零。">
+  <div class="sheet">
+    <header class="sheet-head">
+      <span><b>數據看板</b>　方案比較</span>
+      <span>高雄辦事處　04 / 09</span>
+    </header>
+    <div class="slide-inner">
+      <p class="eyebrow">02　各種選擇比一比</p>
+      <h2 style="font-size:clamp(1.85rem,3.2vw,2.9rem)">一樣要看數據，<span class="mark">四條路的成本差多少</span></h2>
+      <div class="stamp-anchor" style="margin-top:1.2vh">
+      <div class="seal seal-solid seal-pin seal-pin--table">觀測貿易數據<br>經濟實惠首選</div>
+      <table class="decl">
+        <thead>
+          <tr>
+            <th style="width:9.5rem"></th>
+            <th>自己上網拼湊</th>
+            <th>付費資料庫</th>
+            <th>聘數據分析師</th>
+            <th class="win">本方案</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>成本</th>
+            <td>業務的時間成本</td>
+            <td>數十萬起跳</td>
+            <td>月薪 5–8 萬</td>
+            <td class="win">NT$ 999／年</td>
+          </tr>
+          <tr>
+            <th>資料來源</th>
+            <td>網路雜訊</td>
+            <td>商業資料庫</td>
+            <td>視分析師而定</td>
+            <td class="win">財政部關務署</td>
+          </tr>
+          <tr>
+            <th>客製化</th>
+            <td>無</td>
+            <td>通用報表</td>
+            <td>高</td>
+            <td class="win">高（依 HS Code）</td>
+          </tr>
+          <tr>
+            <th>更新頻率</th>
+            <td>看你勤勞</td>
+            <td>多為季度</td>
+            <td>視排程</td>
+            <td class="win">每月</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 用法 01 市場掃描 ============ -->
+<section class="slide" data-note="〔約 40 秒〕
+接下來三張圖，一張一種用法。
+第一種是市場掃描，找出藍海。我們服務過一家化學品廠商，想外銷東南亞。透過看板，他一眼就看到目標國的進口需求穩定成長，而且本地競爭者缺席，是一片藍海；再參考數據制定有競爭力的報價，最後做到高毛利外銷。
+螢幕上這張是自行車產業的實際看板——左邊是產品出口到各主要市場的金額占比，右邊是近五年的金額趨勢，下面還有各國的金額與增減率明細。哪個市場在長、哪個在縮，一眼就看得出來。">
+  <div class="sheet">
+    <header class="sheet-head">
+      <span><b>數據看板</b>　用法 01</span>
+      <span>高雄辦事處　05 / 09</span>
+    </header>
+    <div class="slide-inner">
+      <p class="eyebrow">03　用法 01</p>
+      <h2>市場掃描：<span class="mark">找出藍海</span></h2>
+      <div class="two-col" style="margin-top:.8vh">
+        <div class="stack">
+          <p class="lead">一眼洞察全球市場對貴公司產品的需求消長。</p>
+          <div class="field">
+            <span class="tag">應用案例</span>
+            <h3>化學品商外銷東南亞</h3>
+            <p>目標國進口需求穩定成長<br>
+               本地競爭者缺席，屬藍海市場<br>
+               參考數據制定具競爭力報價</p>
+          </div>
+          <p class="lead" style="color:var(--accent);font-weight:700;font-family:var(--font-title);font-size:clamp(1.15rem,1.7vw,1.5rem)">→ 實現高毛利外銷</p>
+        </div>
+        <div>
+          <div class="shot"><img src="assets/dashboard-value.jpg" alt="出口金額統計：主要市場占比與五年趨勢"></div>
+          <p class="cap">出口金額統計　·　主要市場占比與五年趨勢（以自行車產業為例）</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 用法 02 趨勢監控 ============ -->
+<section class="slide" data-note="〔約 40 秒〕
+第二種是趨勢監控，幫你判斷一個市場到底還在成長期，還是已經走向飽和。
+有一家食品商，既有的日本市場已經走平、成長停滯。他用看板掃描，鎖定正在高速成長的馬來西亞當作第二成長曲線；再結合貿協的 Halal 清真認證輔導，讓數據跟產業 know-how 無縫對接，順利打開新市場。
+這一點很值得強調：貿協給你的不只是一張圖，後面還有整個輔導體系接著。">
+  <div class="sheet">
+    <header class="sheet-head">
+      <span><b>數據看板</b>　用法 02</span>
+      <span>高雄辦事處　06 / 09</span>
+    </header>
+    <div class="slide-inner" style="gap:1.2vh">
+      <p class="eyebrow">03　用法 02</p>
+      <h2>趨勢監控：<span class="mark">成長期還是飽和期</span></h2>
+      <div class="two-col wide-right" style="margin-top:.4vh">
+        <div class="stack">
+          <div class="field">
+            <span class="tag">應用案例</span>
+            <h3>食品商開發第二成長曲線</h3>
+            <p>既有日本市場已平緩、成長停滯<br>
+               運用數據看板掃描，鎖定馬來西亞高成長<br>
+               結合貿協 Halal 清真認證輔導</p>
+          </div>
+          <p class="lead" style="color:var(--accent);font-weight:700;font-family:var(--font-title);font-size:clamp(1.1rem,1.62vw,1.42rem)">→ 數據 × 產業 Know-how 無縫對接</p>
+          <p class="note">看板可切換年度／月度：年度看大趨勢，月度看季節性波動。</p>
+        </div>
+        <div>
+          <div class="shot" style="padding:1.2rem 1.3rem 1rem">
+            <svg class="trend" viewBox="0 0 640 330" role="img"
+                 aria-label="目標市場進出口量趨勢：馬來西亞自 2020 年 45 逐年上升至 2025 年 152，日本自 120 平緩下滑至 110">
+              <g class="grid">
+                <line x1="70" y1="280"   x2="600" y2="280"></line>
+                <line x1="70" y1="206.5" x2="600" y2="206.5"></line>
+                <line x1="70" y1="133"   x2="600" y2="133"></line>
+                <line x1="70" y1="59.4"  x2="600" y2="59.4"></line>
+              </g>
+              <g class="ylab">
+                <text x="58" y="285">0</text>
+                <text x="58" y="211">50</text>
+                <text x="58" y="138">100</text>
+                <text x="58" y="64">150</text>
+              </g>
+              <g class="xlab">
+                <text x="70"  y="303">2020</text>
+                <text x="168" y="303">2021</text>
+                <text x="266" y="303">2022</text>
+                <text x="364" y="303">2023</text>
+                <text x="462" y="303">2024</text>
+                <text x="560" y="303">2025</text>
+              </g>
+              <polyline class="ln flat" points="70,103.5 168,96.2 266,100.6 364,106.5 462,110.9 560,118.2"></polyline>
+              <polyline class="ln rise" points="70,213.8 168,203.5 266,180 364,149.1 462,106.5 560,56.5"></polyline>
+              <g class="dot flat">
+                <circle cx="70" cy="103.5" r="4"></circle><circle cx="168" cy="96.2" r="4"></circle>
+                <circle cx="266" cy="100.6" r="4"></circle><circle cx="364" cy="106.5" r="4"></circle>
+                <circle cx="462" cy="110.9" r="4"></circle><circle cx="560" cy="118.2" r="4"></circle>
+              </g>
+              <g class="dot rise">
+                <circle cx="70" cy="213.8" r="4"></circle><circle cx="168" cy="203.5" r="4"></circle>
+                <circle cx="266" cy="180" r="4"></circle><circle cx="364" cy="149.1" r="4"></circle>
+                <circle cx="462" cy="106.5" r="4"></circle><circle cx="560" cy="56.5" r="4"></circle>
+              </g>
+              <text class="tag rise" x="560" y="38">馬來西亞　新市場上升</text>
+              <text class="tag flat" x="560" y="140">日本（既有）　走平</text>
+            </svg>
+          </div>
+          <p class="cap">目標市場進出口量趨勢　·　示意圖，非真實資料</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 07 用法 03 價格防禦 ============ -->
+<section class="slide" data-note="〔約 40 秒〕
+第三種是價格防禦，用科學牌價來談判。
+過去面對客戶砍價，常常只能回一句「我們品質比較好」——但這句話說服不了任何人。
+有了看板，可以看清各個區域真實的價格帶，知道報價區間落在哪裡。談判的時候就能據理力爭，不會被無理砍價，守住本來就應該有的利潤。
+這裡說明一下：關務署是總體統計，看的是市場整體的價格帶，不是特定某一家競爭對手的報價——但這已經足夠讓談判有依據。">
+  <div class="sheet">
+    <header class="sheet-head">
+      <span><b>數據看板</b>　用法 03</span>
+      <span>高雄辦事處　07 / 09</span>
+    </header>
+    <div class="slide-inner">
+      <p class="eyebrow">03　用法 03</p>
+      <h2>價格防禦：用<span class="mark">「科學牌價」</span>談判</h2>
+      <div class="two-col" style="margin-top:.8vh">
+        <div>
+          <div class="shot"><img src="assets/dashboard-price.jpg" alt="出口單價統計：主要市場平均單價分析"></div>
+          <p class="cap">出口單價統計　·　各市場平均單價與增減率</p>
+        </div>
+        <div class="stack">
+          <div class="dialog">
+            <div class="line">
+              <div class="who">買主</div>
+              <p>「你這個報價太高了。」</p>
+            </div>
+            <div class="line">
+              <div class="who">以前的回答</div>
+              <p>「⋯⋯我們品質比較好。」</p>
+            </div>
+            <div class="line you">
+              <div class="who">現在的回答</div>
+              <p>「依關務署統計，這個市場近三年平均單價落在這個區間。」</p>
+            </div>
+          </div>
+          <ul class="check" style="margin-top:.4rem">
+            <li><span class="mk">▸</span><span><b>看清各區域真實價格帶</b><span>知道報價區間在哪</span></span></li>
+            <li><span class="mk">▸</span><span><b>據理力爭，不被無理砍價</b><span>守住本來就應該有的利潤</span></span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ============ 08 申請流程與資格 ============ -->
+<section class="slide" data-note="〔約 30 秒〕
+先講流程。六個步驟：先在活動頁面線上填單報名，一到三個工作天完成資格審核，審核通過會用 Email 通知繳費，繳完 999 元之後做客製化需求調查、確認要看的 HS Code，最後 20 個工作天內交付看板。
+資格有七項，畫深藍底的三項是關鍵：第一，要有進出口廠商登記；第三，三年內要有進出口實績；第七，要符合中小企業認定標準——資本額一億元以下，或者資本額超過一億元但員工人數在 200 人以下。
+不確定符不符合的，會後直接來問，帶著統編可以當場幫你查。">
+  <div class="sheet">
+    <header class="sheet-head">
+      <span><b>數據看板</b>　申請方式</span>
+      <span>高雄辦事處　08 / 09</span>
+    </header>
+    <div class="slide-inner">
+      <p class="eyebrow">04　申請流程</p>
+      <h2 style="font-size:clamp(1.8rem,3.1vw,2.8rem)">六個步驟，<span class="mark">20 個工作天內交付</span></h2>
+      <div class="flow" style="margin-top:1.2vh">
+        <div class="step"><span class="no">1</span><b>線上報名</b><span>活動頁面填單</span></div>
+        <div class="step"><span class="no">2</span><b>資格審核</b><span>1–3 工作天</span></div>
+        <div class="step"><span class="no">3</span><b>通知結果</b><span>Email 通知繳費</span></div>
+        <div class="step"><span class="no">4</span><b>完成繳費</b><span>NT$ 999</span></div>
+        <div class="step"><span class="no">5</span><b>需求調查</b><span>確認 HS Code</span></div>
+        <div class="step"><span class="no">6</span><b>交付看板</b><span>20 工作天內</span></div>
+      </div>
+      <div class="field" style="margin-top:2.2vh">
+        <span class="tag">申請資格　七大條件</span>
+        <ul class="chips" style="margin-top:.3rem">
+          <li class="key-cond">① 進出口廠商登記</li>
+          <li>② 1 年內未受處分</li>
+          <li class="key-cond">③ 3 年內進出口實績</li>
+          <li>④ 受輔導產品臺灣產製</li>
+          <li>⑤ 資本組成不含陸資</li>
+          <li>⑥ 符合智財權規定</li>
+          <li class="key-cond">⑦ 符合中小企業標準</li>
+        </ul>
+        <p class="note" style="margin-top:.8rem">※ 中小企業認定標準：資本額 1 億元以下；或資本額 1 億元以上、但員工人數 200 人以下者。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 09 立即報名（本頁有兩拍） ============ -->
+<section class="slide" data-note="〔約 25 秒．本頁有兩拍：講完報名資訊後按一次方向鍵，「額滿即止」的印章才蓋下來。這是最後一頁，蓋完就結束〕
+最後提醒各位，這個方案是有名額限制的，年度限量 300 家，額滿即止。
+現在請各位拿出手機掃描螢幕上的 QR Code，會直接進到高雄場的報名表單，當場就能填完。
+想先看活動說明再決定的，可以記下 events.taiwantrade.com 斜線 115Dashboard，那是活動頁面。
+還不確定適不適合貴公司的，也可以先預約線上 Demo，實際帶你走一遍再決定；Email 跟電話都在螢幕上。
+歡迎帶著關注產品的 HS Code 到現場洽詢。謝謝大家。">
+  <div class="sheet">
+    <header class="sheet-head">
+      <span><b>TAITRA</b>　數位科技中心</span>
+      <span>高雄辦事處　09 / 09</span>
+    </header>
+    <div class="slide-inner">
+      <div class="two-col" style="align-items:center">
+        <div class="stack" style="gap:1.4rem">
+          <p class="eyebrow">立即報名</p>
+          <div class="stamp-anchor stamp-anchor--title">
+            <h1 style="font-size:clamp(2.4rem,4.4vw,4rem)">年度限量<br>300 家</h1>
+            <div class="seal seal-pin seal-pin--title">額滿<br>即止</div>
+          </div>
+          <p class="lead">額滿即止，歡迎報名或預約線上 Demo。</p>
+          <div class="field">
+            <span class="tag">諮詢窗口</span>
+            <p style="line-height:2">
+              活動頁面　<span class="hl">events.taiwantrade.com/115Dashboard</span><br>
+              Email　　<span class="hl">tradedashboard@taitra.org.tw</span><br>
+              電話　　　<span class="hl">02-2725-5200　#1713　#77006</span>
+            </p>
+          </div>
+          <div class="logobar plain">
+            <div class="lgu">
+              <span class="lgl">主辦</span>
+              <img src="assets/logo-ita.png" alt="經濟部國際貿易署">
+            </div>
+            <span class="sep"></span>
+            <div class="lgu">
+              <span class="lgl">執行</span>
+              <img src="assets/logo-taitra.png" alt="中華民國對外貿易發展協會">
+            </div>
+          </div>
+        </div>
+        <div class="stack" style="align-items:center;gap:.9rem">
+          <div class="qr qr-lg"><img src="assets/qr-form-kaohsiung.png" alt="企業進出口數據看板　高雄辦事處報名表單 QR Code"></div>
+          <p class="cap" style="text-align:center;margin-top:0">掃描直接填寫報名表單　·　高雄辦事處專屬</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div><!-- /#deck -->
+
+<div id="pg">01 / 09</div>
+<div id="hint">← → 換頁　·　F 全螢幕</div>
+<div id="notes"><span class="nh">講者備註</span><span id="ntext"></span></div>
+
+<script>
+(function(){
+  var deck = document.getElementById('deck');
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var bar = document.getElementById('bar');
+  var pg = document.getElementById('pg');
+  var notes = document.getElementById('notes');
+  var ntext = document.getElementById('ntext');
+  var i = 0;
+
+  function pad(n){ return (n<10?'0':'') + n; }
+
+  var lastNav = 0;
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---- 分段進度條：四個段落，寬度依頁數分配 ---- */
+  var SECTIONS = [
+    {name:'為什麼需要', from:1, to:2},
+    {name:'方案內容',   from:3, to:4},
+    {name:'三種用法',   from:5, to:7},
+    {name:'怎麼拿到',   from:8, to:9}
+  ];
+  SECTIONS.forEach(function(sec){
+    var seg = document.createElement('div');
+    seg.className = 'seg';
+    seg.style.flex = (sec.to - sec.from + 1);
+    seg.title = sec.name;
+    seg.appendChild(document.createElement('i'));
+    bar.appendChild(seg);
+    sec.fill = seg.firstChild;
+  });
+  function paintBar(){
+    var page = i + 1;
+    SECTIONS.forEach(function(sec){
+      var total = sec.to - sec.from + 1, done;
+      if(page < sec.from) done = 0;
+      else if(page > sec.to) done = total;
+      else done = page - sec.from + 1;
+      sec.fill.style.transform = 'scaleX(' + (done/total) + ')';
+    });
+  }
+
+  /* ---- 逐項揭示：挑出這一頁的揭示單位，巢狀的只取最外層 ---- */
+  var REVEAL_SEL = '.eyebrow, h1, h2, .lead, .note, .field, .pain,' +
+                   '.step, .terms > div, table.decl, ul.check > li, .chips, .shot,' +
+                   '.qr, .cap, .stat, .cover-meta, .logobar, .dialog .line';
+
+  function markReveal(slide){
+    var found = Array.prototype.slice.call(slide.querySelectorAll(REVEAL_SEL));
+    // 若某元素的祖先也在名單內，就讓祖先整塊一起動，避免重複動畫
+    var units = found.filter(function(el){
+      return !found.some(function(other){ return other !== el && other.contains(el); });
+    });
+    slide.querySelectorAll('[data-r]').forEach(function(el){
+      el.removeAttribute('data-r'); el.style.removeProperty('--d');
+    });
+    units.forEach(function(el, n){
+      el.setAttribute('data-r','');
+      el.style.setProperty('--d', (n * 55) + 'ms');
+    });
+    // 螢光筆等所在的那一行文字揭示完，才畫過去
+    slide.querySelectorAll('.mark').forEach(function(m){
+      var host = m.closest('[data-r]');
+      var d = host ? (parseInt(host.style.getPropertyValue('--d'), 10) || 0) : 0;
+      m.style.setProperty('--md', (d + 480) + 'ms');
+    });
+  }
+
+  /* ---- 數字滾動 ---- */
+  var runToken = 0;
+  function countUp(el){
+    var target = parseInt(el.getAttribute('data-count'), 10);
+    if(isNaN(target)) return;
+    // 原始文字保留分位樣式，同時作為 JS 失效時的靜態值
+    if(!el.dataset.raw) el.dataset.raw = el.textContent;
+    var grouped = /,/.test(el.dataset.raw);
+    var fmt = function(v){ return grouped ? v.toLocaleString('en-US') : String(v); };
+    // 分頁在背景時 rAF 與 setTimeout 都會被節流，滾動只會卡在假數字；
+    // 沒人看得到的動畫不值得跑，直接顯示正確值
+    if(reduced || document.hidden){ el.textContent = el.dataset.raw; return; }
+
+    var mine = ++runToken;
+    el.dataset.token = mine;
+    var dur = 850, t0 = null;
+    function step(ts){
+      if(el.dataset.token != mine) return;        // 已被新的一輪接手就停手
+      if(t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      var eased = 1 - Math.pow(1 - p, 3);          // easeOutCubic
+      el.textContent = p < 1 ? fmt(Math.round(target * eased)) : el.dataset.raw;
+      if(p < 1) requestAnimationFrame(step);
+    }
+    el.textContent = fmt(0);
+    requestAnimationFrame(step);
+    // 保險：時間到就直接補上正確數字，絕不讓畫面停在滾動途中的假價格
+    setTimeout(function(){
+      if(el.dataset.token == mine) el.textContent = el.dataset.raw;
+    }, dur + 250);
+  }
+
+  function render(){
+    paintBar();
+    pg.textContent = pad(i+1) + ' / ' + pad(slides.length);
+    ntext.textContent = slides[i].getAttribute('data-note') || '（本頁無備註）';
+    slides.forEach(function(s){
+      s.classList.remove('enter');
+      s.querySelectorAll('.seal.stamped').forEach(function(el){ el.classList.remove('stamped'); });
+    });
+    markReveal(slides[i]);
+    void slides[i].offsetWidth;           // 強制 reflow，讓動畫可以重播
+    slides[i].classList.add('enter');
+
+    var cur  = slides[i];                 // 綁定排定當下這一頁，不要事後才查 i
+    var nums = cur.querySelectorAll('[data-count]');
+    if(nums.length){
+      setTimeout(function(){
+        if(cur.classList.contains('enter')) nums.forEach(countUp);
+      }, reduced ? 0 : 420);
+    }
+  }
+
+  /* ---- 分段揭示：印章是獨立的一拍 ----
+     前進：本頁還有沒蓋的印章就先蓋，否則才翻頁。
+     後退：本頁印章已蓋就先收回，否則才回上一頁。進出頁面一律重置。 */
+  function stepForward(){
+    var pending = slides[i].querySelector('.seal:not(.stamped)');
+    if(pending){ pending.classList.add('stamped'); return; }
+    go(i+1);
+  }
+  function stepBack(){
+    var done = slides[i].querySelector('.seal.stamped');
+    if(done){ done.classList.remove('stamped'); return; }
+    go(i-1);
+  }
+
+  function go(n){
+    var next = Math.max(0, Math.min(slides.length-1, n));
+    if(next === i && lastNav) return;
+    document.body.classList.toggle('nav-back', next < i);   // 回上一頁時，內容從左邊進
+    i = next;
+    lastNav = Date.now();
+    deck.scrollLeft = slides[i].offsetLeft;   // 用實際位置，避免 clientWidth 為小數時累積誤差
+    render();
+  }
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' '){
+      e.preventDefault(); stepForward();
+    } else if(e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp'){
+      e.preventDefault(); stepBack();
+    } else if(e.key === 'Home'){ e.preventDefault(); go(0); }
+    else if(e.key === 'End'){ e.preventDefault(); go(slides.length-1); }
+    else if(e.key === 'n' || e.key === 'N'){ notes.classList.toggle('on'); }
+    else if(e.key === 'f' || e.key === 'F'){
+      if(document.fullscreenElement){ document.exitFullscreen(); }
+      else { document.documentElement.requestFullscreen(); }
+    }
+  });
+
+  // 捲動（觸控 / 滑鼠）時同步頁碼
+  var t;
+  deck.addEventListener('scroll', function(){
+    clearTimeout(t);
+    t = setTimeout(function(){
+      if(Date.now() - lastNav < 250) return;   // 剛用鍵盤換過頁，別讓捲動事件蓋回去
+      var x = deck.scrollLeft, n = 0, best = Infinity;
+      slides.forEach(function(s, k){
+        var dist = Math.abs(s.offsetLeft - x);
+        if(dist < best){ best = dist; n = k; }
+      });
+      if(n !== i){ i = n; render(); }
+    }, 120);
+  }, {passive:true});
+
+  // 切走再切回來時，把所有滾動中的數字補成正確值
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) return;
+    document.querySelectorAll('[data-count]').forEach(function(el){
+      if(el.dataset.raw){ el.dataset.token = 'stopped'; el.textContent = el.dataset.raw; }
+    });
+  });
+
+  // 視窗縮放（含進入／離開全螢幕）後重新對齊目前頁
+  window.addEventListener('resize', function(){
+    lastNav = Date.now();
+    deck.scrollLeft = slides[i].offsetLeft;
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
