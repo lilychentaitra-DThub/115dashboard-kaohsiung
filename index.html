@@ -346,7 +346,9 @@ ul.check span{font-size:clamp(.86rem,1.08vw,.98rem);color:var(--text-secondary)}
 #notes.on{display:block}
 #notes .nh{font-size:.72rem;letter-spacing:.2em;color:#8FA6C6;margin-bottom:.5rem;display:block}
 
-@media (max-width:900px){
+/* 窄螢幕才降成單欄。一定要限定 screen——轉 PDF 時頁面框會讓這條誤中，
+   兩欄版面整個塌掉、內容擠爆頁面。列印的頁寬固定 1280px，用不到手機版。 */
+@media screen and (max-width:900px){
   .two-col{grid-template-columns:1fr;gap:1.4rem}
   .pains{grid-template-columns:1fr}
   .flow,.flow.f3{grid-template-columns:repeat(3,1fr)}
@@ -402,12 +404,30 @@ body.nav-back .slide.enter [data-r]{animation-name:revealBwd}
   .seal.stamped{animation:none}
   .seal.stamped::after{display:none}
 }
+/* ---------- 轉 PDF ----------
+   頁面尺寸訂成 1280×720px＝960×540pt，與 PowerPoint 16:9 完全一致，
+   投影時不會有黑邊。vh/vw 在分頁媒體下會對應到這個頁面框，版面照常成立。 */
+@page{size:1280px 720px;margin:0}
 @media print{
-  html,body{height:auto;overflow:visible}
+  /* 預設瀏覽器列印會拿掉背景色。整份簡報的海關藍、印章、表格反白格
+     全都靠背景，一定要強制保留，否則印出來是一片白紙。 */
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* 動畫一律關掉。第 1 頁載入時會跑逐項揭示，列印快照會剛好抓在
+     animation-delay 期間——backwards 的起始狀態是 opacity:0，
+     整頁內容會憑空消失。紙上不需要動態，全部停在最終樣子即可。 */
+  *,*::before,*::after{animation:none !important;transition:none !important}
+  html,body{height:auto;overflow:visible;background:#fff}
   #deck{position:static;display:block;overflow:visible}
-  .slide{page-break-after:always;height:100vh;width:100%}
+  .slide{
+    width:1280px;height:720px;
+    page-break-after:always;break-after:page;
+    page-break-inside:avoid;break-inside:avoid;
+  }
+  /* 最後一頁不要再斷頁，否則 PDF 尾巴會多一張空白 */
+  .slide:last-child{page-break-after:auto;break-after:auto}
   #bar,#pg,#hint,#notes{display:none}
-  .seal{visibility:visible}   /* 轉 PDF 時印章要印得出來 */
+  /* 印章平常靠 .stamped 才顯示，轉 PDF 時兩顆都要印出來 */
+  .seal{visibility:visible}
 }
 </style>
 </head>

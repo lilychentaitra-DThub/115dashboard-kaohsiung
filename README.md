@@ -11,8 +11,22 @@
 
 - 線上版：<https://lilychentaitra-dthub.github.io/115dashboard-kaohsiung/>
 - 本機：直接用瀏覽器開啟 `index.html`（單檔、無外部相依、離線可用）
+- PDF：`115dashboard-kaohsiung-slides.pdf`（9 頁，960×540pt＝PowerPoint 16:9）
 
-現場建議用本機檔案，不要依賴會場網路。
+現場建議用本機的 `index.html`，不要依賴會場網路。PDF 是給會後分送、或現場只能用他人電腦時的備案。
+
+### PDF 怎麼重新產生
+
+改完 `index.html` 之後，用無頭 Chrome 重印一次即可（頁面尺寸由 CSS 的 `@page` 決定）：
+
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
+  --headless=new --disable-gpu --no-pdf-header-footer `
+  --run-all-compositor-stages-before-draw --virtual-time-budget=10000 `
+  --print-to-pdf="115dashboard-kaohsiung-slides.pdf" "file:///<本資料夾絕對路徑>/index.html"
+```
+
+輸出是**可選取的真文字**（非圖片），字型已內嵌，換電腦開不會變形。
 
 ## 操作
 
@@ -101,3 +115,13 @@ assets/_unused/                  已停用素材，勿再引用
 - 數字滾動另有兩道保險：分頁不可見時（`document.hidden`）直接顯示正確值不跑動畫；
   切換分頁時把滾動中的數字補成最終值，避免畫面停在滾動途中的假價格。
 - `.seal.seal-pin` 用雙 class 提高權重，否則會被後面動畫區塊的 `.seal{position:relative}` 蓋掉（同權重、後者勝）。
+
+### 轉 PDF 的三個地雷（都已修好，改版時別踩回去）
+
+1. **列印時必須關掉所有動畫**（`@media print` 裡的 `animation:none !important`）。
+   第 1 頁載入會跑逐項揭示，列印快照剛好抓在 `animation-delay` 期間——`backwards` 的起始狀態是
+   `opacity:0`，整頁內容會憑空消失，印出來只剩頁首和空框線。
+2. **窄螢幕的 media query 一定要限定 `screen`**（`@media screen and (max-width:900px)`）。
+   否則轉 PDF 時會誤中手機版規則，兩欄版面全部塌成單欄、內容擠爆頁面。
+3. **`print-color-adjust:exact` 不能少**。瀏覽器列印預設會拿掉背景色，
+   而海關藍封面、紅色印章、表格反白格全都靠背景，少了這行印出來是一片白紙。
